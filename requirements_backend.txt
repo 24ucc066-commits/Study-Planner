@@ -10,4 +10,6 @@ langchain-text-splitters==0.0.1
 faiss-cpu
 pydantic<2
 python-multipart
+pypdf
+
 
