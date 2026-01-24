@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pdfplumber
+langgraph
+langchain
+langchain-groq
+langchain-community
+faiss-cpu
+pydantic
