@@ -7,3 +7,4 @@ langchain-groq
 langchain-community
 faiss-cpu
 pydantic
+langchain-text-splitters
