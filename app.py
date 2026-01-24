@@ -49,7 +49,7 @@ if st.button("Generate Plan"):
             "timetable": timetable
         }
     )
-  data = response.json()
+data = response.json()
 
 st.write("Backend response:", data)  # debug (safe)
 
@@ -91,6 +91,7 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
 
 
 
