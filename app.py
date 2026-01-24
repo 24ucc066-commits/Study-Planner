@@ -49,10 +49,30 @@ if st.button("Generate Plan"):
             "timetable": timetable
         }
     )
-    plan = response.json()["study_plan"]
+  data = response.json()
 
-    st.subheader("📅 Weekly Study Plan")
-    st.write(plan)
+st.write("Backend response:", data)  # debug (safe)
+
+if "study_plan" in data:
+    plan = data["study_plan"]
+elif "plan" in data:
+    plan = data["plan"]
+elif "result" in data:
+    plan = data["result"]
+elif "answer" in data:
+    plan = data["answer"]
+elif "output" in data:
+    plan = data["output"]
+else:
+    st.error("Backend did not return a study plan.")
+    st.stop()
+
+st.subheader("Your Weekly Study Plan")
+st.write(plan)
+  
+
+    
+    
 
 
 if st.button("Approve Plan"):
@@ -71,6 +91,7 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
 
 
 
