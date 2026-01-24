@@ -80,13 +80,39 @@ graph.add_edge("memory", END)
 app_graph = graph.compile()
 
 # ---------------- API ----------------
+from fastapi import FastAPI, UploadFile, File
+from pypdf import PdfReader
+import io
+
+app = FastAPI()
+
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
-    text = ""
-    with pdfplumber.open(file.file) as pdf:
-        for page in pdf.pages:
-            text += page.extract_text() or ""
-    return {"syllabus": text}
+async def upload_syllabus(file: UploadFile = File(...)):
+    try:
+        pdf_bytes = await file.read()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        text = ""
+        for page in reader.pages:
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
+
+        if not text.strip():
+            return {
+                "syllabus_text": ""
+            }
+
+        return {
+            "syllabus_text": text
+        }
+
+    except Exception as e:
+        return {
+            "syllabus_text": "",
+            "error": str(e)
+        }
+
 
 @app.post("/generate-plan")
 async def generate_plan(syllabus: str = Form(...)):
@@ -114,3 +140,4 @@ Question:
 """
     response = llm.invoke(prompt)
     return {"answer": response.content}
+
