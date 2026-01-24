@@ -1,45 +1,74 @@
-
-
 import streamlit as st
 import requests
+import os
 
-BACKEND = "https://study-planner-kvev.onrender.com"
-
-
-st.set_page_config(
-    page_title="CAESAR Lite",
-    layout="wide"
+# =========================
+# CONFIG
+# =========================
+BACKEND_URL = os.getenv(
+    "BACKEND_URL",
+    "https://study-planner-kvev.onrender.com"  # 🔁 CHANGE only if your backend URL is different
 )
 
-st.title("📚 Agentic AI Study Planner")
+st.set_page_config(page_title="Study Planner", layout="centered")
 
+st.title("📘 AI Study Planner")
 
-st.header("1️⃣ Upload Syllabus PDF")
+# =========================
+# STEP 1: UPLOAD SYLLABUS
+# =========================
+st.subheader("1️⃣ Upload Syllabus PDF")
 
-file = st.file_uploader(
+uploaded_file = st.file_uploader(
     "Upload syllabus PDF",
     type=["pdf"]
 )
 
 syllabus_text = ""
 
-if file:
-    response = requests.post(
-        f"{BACKEND}/upload",
-        files={"file": file}
-    )
-    syllabus_text = response.json()["syllabus"]
-    st.success("Syllabus processed successfully")
+if uploaded_file is not None:
+    with st.spinner("Uploading syllabus..."):
+        try:
+            response = requests.post(
+                f"{BACKEND_URL}/upload",
+                files={"file": uploaded_file}
+            )
 
+            if response.status_code != 200:
+                st.error("Backend error while uploading syllabus")
+                st.stop()
 
-st.header("2️⃣ Enter Timetable")
+            data = response.json()
+            syllabus_text = data.get("syllabus_text", "")
 
-timetable = st.text_area(
-    "Paste your weekly class & lab timetable"
+            if not syllabus_text:
+                st.error("No syllabus text returned from backend")
+                st.stop()
+
+            st.success("Syllabus uploaded successfully!")
+
+        except Exception as e:
+            st.error(f"Upload failed: {e}")
+            st.stop()
+
+# =========================
+# STEP 2: ENTER TIMETABLE
+# =========================
+st.subheader("2️⃣ Enter Timetable")
+
+timetable_text = st.text_area(
+    "Paste your weekly class & lab timetable",
+    height=150,
+    placeholder="Monday:\n10–11 AM Math\n12–1 PM Physics"
 )
 
+# =========================
+# STEP 3: GENERATE PLAN
+# =========================
+st.subheader("3️⃣ Generate Weekly Study Plan")
 
 if st.button("Generate Plan"):
+
     if not syllabus_text.strip():
         st.error("Please upload syllabus first")
         st.stop()
@@ -53,47 +82,32 @@ if st.button("Generate Plan"):
         "timetable": timetable_text
     }
 
-    response = requests.post(
-        f"{BACKEND}/generate-plan",
-        json=payload
-    )
+    with st.spinner("Generating study plan..."):
+        try:
+            response = requests.post(
+                f"{BACKEND_URL}/generate-plan",
+                json=payload
+            )
 
-    data = response.json()
-    st.write("Backend response:", data)
+            if response.status_code != 200:
+                st.error("Backend error while generating plan")
+                st.write(response.text)
+                st.stop()
 
-    plan = data.get("study_plan") or data.get("plan") or data.get("result")
+            data = response.json()
 
-    if not plan:
-        st.error("Backend did not return a study plan")
-        st.stop()
+            study_plan = (
+                data.get("study_plan")
+                or data.get("plan")
+            )
 
-    st.subheader("Your Weekly Study Plan")
-    st.write(plan)
+            if not study_plan:
+                st.error("Backend did not return a study plan")
+                st.write(data)
+                st.stop()
 
+            st.success("✅ Study Plan Generated")
+            st.markdown(study_plan)
 
-    
-    
-
-
-if st.button("Approve Plan"):
-    requests.post(f"{BACKEND}/approve")
-    st.success("Plan approved and stored in memory")
-
-
-st.header("❓ Ask Doubts from Syllabus")
-
-question = st.text_input("Enter your doubt")
-
-if st.button("Ask Tutor"):
-    response = requests.post(
-        f"{BACKEND}/ask-doubt",
-        data={"question": question}
-    )
-    st.subheader("📘 Tutor Answer")
-    st.write(response.json()["answer"])
-
-
-
-
-
-
+        except Exception as e:
+            st.error(f"Request failed: {e}")
