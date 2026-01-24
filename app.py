@@ -3,7 +3,8 @@
 import streamlit as st
 import requests
 
-BACKEND = "http://localhost:8000"
+BACKEND = "https://study-planner-kvev.onrender.com"
+
 
 st.set_page_config(
     page_title="CAESAR Lite",
@@ -70,3 +71,4 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
