@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import pdfplumber
 
 from langgraph.graph import StateGraph, END
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import FakeEmbeddings
 from langchain.chains import RetrievalQA
@@ -190,3 +190,4 @@ async def ask_doubt(question: str = Form(...)):
     qa_chain = load_qa_chain()
     answer = qa_chain.run(question)
     return {"answer": answer}
+
