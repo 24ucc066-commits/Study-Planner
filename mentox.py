@@ -1,56 +1,39 @@
-
-
-import os
-import json
-import sqlite3
-from typing import List, Dict, TypedDict
-
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 import pdfplumber
+import json
+import sqlite3
 
 from langgraph.graph import StateGraph, END
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import FakeEmbeddings
-from langchain_community.chains import RetrievalQA
 from langchain_groq import ChatGroq
-from dotenv import load_dotenv
 
-
-load_dotenv()
-app = FastAPI(title="Backend (ChatGroq)")
+# ---------------- APP ----------------
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+# ---------------- DB ----------------
 conn = sqlite3.connect("memory.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS plans (
     week INTEGER,
-    plan TEXT,
-    approved INTEGER
-)
-""")
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS progress (
-    week INTEGER,
-    completed INTEGER
+    plan TEXT
 )
 """)
 conn.commit()
 
-
+# ---------------- LLM ----------------
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     temperature=0.2
@@ -58,138 +41,78 @@ llm = ChatGroq(
 
 embeddings = FakeEmbeddings(size=768)
 
+# ---------------- AGENTS ----------------
+def ingest_agent(state):
+    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+    chunks = splitter.split_text(state["syllabus"])
 
-class PlannerState(TypedDict):
-    syllabus_text: str
-    timetable: str
-    topics: List[str]
-    free_slots: List[str]
-    plan: Dict
-    progress: int
-
-
-
-def ingestion_agent(state: PlannerState):
-    """Reads syllabus text, creates vector DB"""
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=100
-    )
-    chunks = splitter.split_text(state["syllabus_text"])
-
-    vectordb = FAISS.from_texts(chunks, embeddings)
-    vectordb.save_local("syllabus_index")
+    db = FAISS.from_texts(chunks, embeddings)
+    db.save_local("syllabus_index")
 
     return {"topics": chunks[:5]}
 
-
-def timetable_agent(state: PlannerState):
-    """Identifies free study slots (simple demo logic)"""
-    return {"free_slots": ["6–7 AM", "7–8 PM", "9–10 PM"]}
-
-
-def planner_agent(state: PlannerState):
-    """Generates weekly study plan"""
+def plan_agent(state):
     prompt = f"""
-    You are an academic study planner.
-
-    Topics: {state['topics']}
-    Available free slots: {state['free_slots']}
-
-    Create a clear 7-day weekly study plan.
-    """
-
+Create a weekly study plan from these topics:
+{state['topics']}
+"""
     response = llm.invoke(prompt)
+    return {"plan": response.content}
 
-    return {
-        "plan": {
-            "week_plan": response.content
-        }
-    }
-
-
-def feedback_agent(state: PlannerState):
-    """Tracks progress (placeholder)"""
-    return {"progress": state.get("progress", 100)}
-
-
-def memory_agent(state: PlannerState):
-    """Stores plan in SQLite"""
+def memory_agent(state):
     cursor.execute(
-        "INSERT INTO plans VALUES (?,?,?)",
-        (1, json.dumps(state["plan"]), 0)
+        "INSERT INTO plans VALUES (?,?)",
+        (1, state["plan"])
     )
     conn.commit()
     return state
 
+# ---------------- GRAPH ----------------
+graph = StateGraph(dict)
+graph.add_node("ingest", ingest_agent)
+graph.add_node("planner", plan_agent)
+graph.add_node("memory", memory_agent)
 
-workflow = StateGraph(PlannerState)
+graph.set_entry_point("ingest")
+graph.add_edge("ingest", "planner")
+graph.add_edge("planner", "memory")
+graph.add_edge("memory", END)
 
-workflow.add_node("ingest", ingestion_agent)
-workflow.add_node("timetable_agent", timetable_agent)
-workflow.add_node("planner", planner_agent)
-workflow.add_node("feedback", feedback_agent)
-workflow.add_node("memory", memory_agent)
+app_graph = graph.compile()
 
-workflow.set_entry_point("ingest")
-workflow.add_edge("ingest", "timetable_agent")
-workflow.add_edge("timetable_agent", "planner")
-workflow.add_edge("planner", "feedback")
-workflow.add_edge("feedback", "memory")
-workflow.add_edge("memory", END)
-
-app_graph = workflow.compile()
-
-
-
+# ---------------- API ----------------
 @app.post("/upload")
-async def upload_syllabus(file: UploadFile = File(...)):
+async def upload(file: UploadFile = File(...)):
     text = ""
     with pdfplumber.open(file.file) as pdf:
         for page in pdf.pages:
             text += page.extract_text() or ""
-    return {"syllabus_text": text}
-
+    return {"syllabus": text}
 
 @app.post("/generate-plan")
-async def generate_plan(
-    syllabus_text: str = Form(...),
-    timetable: str = Form(...)
-):
-    result = app_graph.invoke({
-        "syllabus_text": syllabus_text,
-        "timetable": timetable,
-        "progress": 100
-    })
+async def generate(syllabus: str = Form(...)):
+    result = app_graph.invoke({"syllabus": syllabus})
     return result
 
-
-@app.post("/approve")
-async def approve_plan():
-    cursor.execute("UPDATE plans SET approved=1 WHERE week=1")
-    conn.commit()
-    return {"status": "approved"}
-
-
-
-def load_qa_chain():
-    vectordb = FAISS.load_local(
+@app.post("/ask-doubt")
+async def ask_doubt(question: str = Form(...)):
+    db = FAISS.load_local(
         "syllabus_index",
         embeddings,
         allow_dangerous_deserialization=True
     )
 
-    return RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=vectordb.as_retriever(search_kwargs={"k": 3})
-    )
+    docs = db.similarity_search(question, k=3)
+    context = "\n".join(d.page_content for d in docs)
 
+    prompt = f"""
+Answer ONLY from the context.
 
-@app.post("/ask-doubt")
-async def ask_doubt(question: str = Form(...)):
-    qa_chain = load_qa_chain()
-    answer = qa_chain.run(question)
-    return {"answer": answer}
+Context:
+{context}
 
-
-
+Question:
+{question}
+"""
+    response = llm.invoke(prompt)
+    return {"answer": response.content}
