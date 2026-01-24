@@ -49,7 +49,7 @@ if st.button("Generate Plan"):
             "timetable": timetable
         }
     )
-    plan = response.json()["plan"]
+    plan = response.json()["study_plan"]
 
     st.subheader("📅 Weekly Study Plan")
     st.write(plan)
@@ -71,5 +71,6 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
 
 
