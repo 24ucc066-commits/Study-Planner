@@ -28,7 +28,7 @@ if file:
         f"{BACKEND}/upload",
         files={"file": file}
     )
-    syllabus_text = response.json()["syllabus_text"]
+    syllabus_text = response.json()["syllabus"]
     st.success("Syllabus processed successfully")
 
 
@@ -71,4 +71,5 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
 
