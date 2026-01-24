@@ -2,12 +2,9 @@ import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pypdf import PdfReader
-
 from langchain_groq import ChatGroq
 
-# -----------------------------
-# App setup
-# -----------------------------
+# -------------------- APP --------------------
 app = FastAPI()
 
 app.add_middleware(
@@ -17,18 +14,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------
-# LLM (Groq)
-# -----------------------------
+# -------------------- LLM --------------------
 llm = ChatGroq(
     model="llama-3.1-8b-instant",
     temperature=0.2,
-    groq_api_key=os.getenv("GROQ_API_KEY")
+    groq_api_key=os.getenv("GROQ_API_KEY"),
 )
 
-# -----------------------------
-# Upload syllabus PDF
-# -----------------------------
+# -------------------- UPLOAD SYLLABUS --------------------
 @app.post("/upload")
 async def upload_syllabus(file: UploadFile = File(...)):
     reader = PdfReader(file.file)
@@ -41,16 +34,14 @@ async def upload_syllabus(file: UploadFile = File(...)):
         "syllabus_text": text.strip()
     }
 
-# -----------------------------
-# Generate study plan
-# -----------------------------
+# -------------------- GENERATE STUDY PLAN --------------------
 @app.post("/generate-plan")
 async def generate_plan(payload: dict):
     syllabus = payload.get("syllabus", "")
     timetable = payload.get("timetable", "")
 
     if not syllabus or not timetable:
-        return {"error": "Missing syllabus or timetable"}
+        return {"error": "syllabus and timetable required"}
 
     prompt = f"""
 You are an AI study planner.
@@ -70,9 +61,34 @@ Create a clear weekly study plan.
         "study_plan": response.content
     }
 
-# -----------------------------
-# Health check
-# -----------------------------
+# -------------------- DOUBT SOLVER --------------------
+@app.post("/ask-doubt")
+async def ask_doubt(payload: dict):
+    question = payload.get("question", "")
+    syllabus = payload.get("syllabus", "")
+
+    if not question:
+        return {"error": "question required"}
+
+    prompt = f"""
+You are a helpful teacher.
+
+SYLLABUS CONTEXT:
+{syllabus}
+
+STUDENT QUESTION:
+{question}
+
+Answer clearly and simply.
+"""
+
+    response = llm.invoke(prompt)
+
+    return {
+        "answer": response.content
+    }
+
+# -------------------- HEALTH --------------------
 @app.get("/")
 def root():
     return {"status": "Backend running"}
