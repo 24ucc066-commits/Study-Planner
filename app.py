@@ -39,37 +39,37 @@ timetable = st.text_area(
 )
 
 
-st.header("3️⃣ Generate Weekly Study Plan")
-
 if st.button("Generate Plan"):
+    if not syllabus_text.strip():
+        st.error("Please upload syllabus first")
+        st.stop()
+
+    if not timetable_text.strip():
+        st.error("Please enter timetable")
+        st.stop()
+
+    payload = {
+        "syllabus": syllabus_text,
+        "timetable": timetable_text
+    }
+
     response = requests.post(
         f"{BACKEND}/generate-plan",
-        data={
-            "syllabus_text": syllabus_text,
-            "timetable": timetable
-        }
+        json=payload
     )
-data = response.json()
 
-st.write("Backend response:", data)  # debug (safe)
+    data = response.json()
+    st.write("Backend response:", data)
 
-if "study_plan" in data:
-    plan = data["study_plan"]
-elif "plan" in data:
-    plan = data["plan"]
-elif "result" in data:
-    plan = data["result"]
-elif "answer" in data:
-    plan = data["answer"]
-elif "output" in data:
-    plan = data["output"]
-else:
-    st.error("Backend did not return a study plan.")
-    st.stop()
+    plan = data.get("study_plan") or data.get("plan") or data.get("result")
 
-st.subheader("Your Weekly Study Plan")
-st.write(plan)
-  
+    if not plan:
+        st.error("Backend did not return a study plan")
+        st.stop()
+
+    st.subheader("Your Weekly Study Plan")
+    st.write(plan)
+
 
     
     
@@ -91,6 +91,7 @@ if st.button("Ask Tutor"):
     )
     st.subheader("📘 Tutor Answer")
     st.write(response.json()["answer"])
+
 
 
 
