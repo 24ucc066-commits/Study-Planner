@@ -2,7 +2,6 @@ from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 import pdfplumber
-import json
 import sqlite3
 
 from langgraph.graph import StateGraph, END
@@ -24,13 +23,9 @@ app.add_middleware(
 # ---------------- DB ----------------
 conn = sqlite3.connect("memory.db", check_same_thread=False)
 cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS plans (
-    week INTEGER,
-    plan TEXT
+cursor.execute(
+    "CREATE TABLE IF NOT EXISTS plans (week INTEGER, plan TEXT)"
 )
-""")
 conn.commit()
 
 # ---------------- LLM ----------------
@@ -43,7 +38,10 @@ embeddings = FakeEmbeddings(size=768)
 
 # ---------------- AGENTS ----------------
 def ingest_agent(state):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100
+    )
     chunks = splitter.split_text(state["syllabus"])
 
     db = FAISS.from_texts(chunks, embeddings)
@@ -51,9 +49,9 @@ def ingest_agent(state):
 
     return {"topics": chunks[:5]}
 
-def plan_agent(state):
+def planner_agent(state):
     prompt = f"""
-Create a weekly study plan from these topics:
+Create a weekly study plan using these topics:
 {state['topics']}
 """
     response = llm.invoke(prompt)
@@ -61,7 +59,7 @@ Create a weekly study plan from these topics:
 
 def memory_agent(state):
     cursor.execute(
-        "INSERT INTO plans VALUES (?,?)",
+        "INSERT INTO plans VALUES (?, ?)",
         (1, state["plan"])
     )
     conn.commit()
@@ -69,8 +67,9 @@ def memory_agent(state):
 
 # ---------------- GRAPH ----------------
 graph = StateGraph(dict)
+
 graph.add_node("ingest", ingest_agent)
-graph.add_node("planner", plan_agent)
+graph.add_node("planner", planner_agent)
 graph.add_node("memory", memory_agent)
 
 graph.set_entry_point("ingest")
@@ -90,9 +89,8 @@ async def upload(file: UploadFile = File(...)):
     return {"syllabus": text}
 
 @app.post("/generate-plan")
-async def generate(syllabus: str = Form(...)):
-    result = app_graph.invoke({"syllabus": syllabus})
-    return result
+async def generate_plan(syllabus: str = Form(...)):
+    return app_graph.invoke({"syllabus": syllabus})
 
 @app.post("/ask-doubt")
 async def ask_doubt(question: str = Form(...)):
@@ -106,7 +104,7 @@ async def ask_doubt(question: str = Form(...)):
     context = "\n".join(d.page_content for d in docs)
 
     prompt = f"""
-Answer ONLY from the context.
+Answer ONLY using the context below.
 
 Context:
 {context}
