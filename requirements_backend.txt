@@ -1,10 +1,19 @@
-fastapi
-uvicorn
-pdfplumber
-langgraph
-langchain
-langchain-groq
-langchain-community
-faiss-cpu
-pydantic
-langchain-text-splitters
+fastapi==0.110.0
+uvicorn==0.29.0
+pdfplumber==0.11.0
+
+# LangChain ecosystem (LOCKED)
+langchain==0.1.16
+langchain-community==0.0.36
+langchain-text-splitters==0.0.1
+langgraph==0.0.48
+
+# Vector DB
+faiss-cpu==1.7.4
+
+# LLM
+langchain-groq==0.1.3
+
+# Utilities
+pydantic<2
+
