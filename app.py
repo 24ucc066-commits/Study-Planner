@@ -1,13 +1,13 @@
 import streamlit as st
 import requests
 
-BACKEND = "https://study-planner-kvev.onrender.com"  # CHANGE if needed
+BACKEND = "https://study-planner-kvev.onrender.com"  
 
 st.set_page_config(page_title="AI Study Planner", layout="centered")
 
 st.title("📘 AI Study Planner")
 
-# -------------------- STEP 1 --------------------
+
 st.header("1️⃣ Upload Syllabus PDF")
 
 uploaded_file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
@@ -25,7 +25,7 @@ if uploaded_file:
     else:
         st.error("Backend failed to extract syllabus")
 
-# -------------------- STEP 2 --------------------
+
 st.header("2️⃣ Enter Timetable")
 
 timetable_text = st.text_area(
@@ -33,7 +33,7 @@ timetable_text = st.text_area(
     height=150
 )
 
-# -------------------- STEP 3 --------------------
+
 st.header("3️⃣ Generate Weekly Study Plan")
 
 if st.button("Generate Plan"):
@@ -56,7 +56,7 @@ if st.button("Generate Plan"):
         else:
             st.error("Plan generation failed")
 
-# -------------------- STEP 4 --------------------
+
 st.header("4️⃣ Ask a Doubt")
 
 question = st.text_input("Enter your doubt")
@@ -78,3 +78,4 @@ if st.button("Ask Doubt"):
             st.write(res["answer"])
         else:
             st.error("Doubt solver failed")
+
