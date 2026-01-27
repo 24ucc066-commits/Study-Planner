@@ -1,81 +1,127 @@
 import streamlit as st
-import requests
+import requests, sqlite3
 
-BACKEND = "https://study-planner-kvev.onrender.com"  
+BACKEND = "http://localhost:8000"
 
-st.set_page_config(page_title="AI Study Planner", layout="centered")
-
-st.title("📘 AI Study Planner")
-
-
-st.header("1️⃣ Upload Syllabus PDF")
-
-uploaded_file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
-syllabus_text = ""
-
-if uploaded_file:
-    res = requests.post(
-        f"{BACKEND}/upload",
-        files={"file": uploaded_file}
-    ).json()
-
-    if "syllabus_text" in res:
-        syllabus_text = res["syllabus_text"]
-        st.success("Syllabus uploaded")
-    else:
-        st.error("Backend failed to extract syllabus")
-
-
-st.header("2️⃣ Enter Timetable")
-
-timetable_text = st.text_area(
-    "Paste your weekly timetable",
-    height=150
+st.set_page_config(
+    page_title="CAESAR Lite",
+    layout="wide"
 )
 
+# ---------------- SESSION ----------------
+if "chat_id" not in st.session_state:
+    response = requests.get(f"{BACKEND}/new-chat")
+    st.session_state.chat_id = response.json()["chat_id"]
+
+st.title("📚 Agentic AI Study Planner")
+
+# ---------------- STUDY PLANNER ----------------
+st.header("1️⃣ Upload Syllabus PDF")
+
+file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
+syllabus_text = ""
+
+if file:
+    response = requests.post(
+        f"{BACKEND}/upload",
+        files={"file": file}
+    )
+    syllabus_text = response.json()["syllabus_text"]
+    st.success("Syllabus processed successfully")
+
+st.header("2️⃣ Enter Timetable")
+timetable = st.text_area("Paste your weekly class & lab timetable")
 
 st.header("3️⃣ Generate Weekly Study Plan")
 
 if st.button("Generate Plan"):
-    if not syllabus_text.strip():
-        st.error("Upload syllabus first")
-    elif not timetable_text.strip():
-        st.error("Enter timetable")
-    else:
-        res = requests.post(
-            f"{BACKEND}/generate-plan",
-            json={
-                "syllabus": syllabus_text,
-                "timetable": timetable_text
-            }
-        ).json()
+    response = requests.post(
+        f"{BACKEND}/generate-plan",
+        data={
+            "syllabus_text": syllabus_text,
+            "timetable": timetable
+        }
+    )
+    st.subheader("📅 Weekly Study Plan")
+    st.write(response.json()["plan"])
 
-        if "study_plan" in res:
-            st.subheader("📅 Study Plan")
-            st.write(res["study_plan"])
-        else:
-            st.error("Plan generation failed")
+if st.button("Approve Plan"):
+    requests.post(f"{BACKEND}/approve")
+    st.success("Plan approved and stored in memory")
 
+# =====================================================
+# 🔑 ONLY UI FIX: TABS
+# =====================================================
+tab1, tab2 = st.tabs(["💬 Ask Doubts", "📝 Exam Ready Notes"])
 
-st.header("4️⃣ Ask a Doubt")
+# ---------------- CHAT TAB ----------------
+with tab1:
+    st.header("❓ Ask Doubts from Syllabus")
+    st.subheader("💬 Chat")
 
-question = st.text_input("Enter your doubt")
+    conn = sqlite3.connect("memory.db")
+    cursor = conn.cursor()
 
-if st.button("Ask Doubt"):
-    if not question.strip():
-        st.error("Enter a question")
-    else:
-        res = requests.post(
+    cursor.execute(
+        "SELECT role, message FROM chat_history WHERE chat_id=? ORDER BY id",
+        (st.session_state.chat_id,)
+    )
+
+    messages = cursor.fetchall()
+
+    for role, msg in messages:
+        with st.chat_message("user" if role == "student" else "assistant"):
+            st.markdown(msg)
+
+    question = st.chat_input("Ask your doubt...")
+
+    if question:
+        response = requests.post(
             f"{BACKEND}/ask-doubt",
-            json={
+            data={
                 "question": question,
-                "syllabus": syllabus_text
+                "chat_id": st.session_state.chat_id
             }
-        ).json()
+        )
+        st.rerun()
 
-        if "answer" in res:
-            st.subheader("🧠 Answer")
-            st.write(res["answer"])
-        else:
-            st.error("Doubt solver failed")
+# ---------------- NOTES TAB ----------------
+with tab2:
+    st.header("📝 Exam Ready Notes")
 
+    topic = st.text_input(
+        "Enter topic name (or leave empty for syllabus-based notes)"
+    )
+
+    if st.button("Generate Notes"):
+        response = requests.post(
+            f"{BACKEND}/generate-notes",
+            data={"topic": topic}
+        )
+        st.subheader("📘 Notes")
+        st.markdown(response.json()["notes"])
+
+    st.subheader("📚 Saved Notes")
+
+    conn = sqlite3.connect("memory.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT topic, notes FROM exam_notes ORDER BY id DESC")
+
+    for topic, notes in cursor.fetchall():
+        with st.expander(topic):
+            st.markdown(notes)
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.markdown("### 🔥 Motivation")
+
+if st.sidebar.button("💡 Get Motivation"):
+    response = requests.get(f"{BACKEND}/motivation")
+    st.sidebar.success(response.json()["message"])
+
+st.sidebar.markdown("### 💬 Doubt Chats")
+
+if st.sidebar.button("➕ New Chat"):
+    response = requests.get(f"{BACKEND}/new-chat")
+    st.session_state.chat_id = response.json()["chat_id"]
+    st.rerun()
