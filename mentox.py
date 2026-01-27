@@ -1,95 +1,127 @@
-import os
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from pypdf import PdfReader
-from langchain_groq import ChatGroq
+import streamlit as st
+import requests, sqlite3
 
+BACKEND = "http://localhost:8000"
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+st.set_page_config(
+    page_title="CAESAR Lite",
+    layout="wide"
 )
 
+# ---------------- SESSION ----------------
+if "chat_id" not in st.session_state:
+    response = requests.get(f"{BACKEND}/new-chat")
+    st.session_state.chat_id = response.json()["chat_id"]
 
-llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    temperature=0.2,
-    groq_api_key=os.getenv("GROQ_API_KEY"),
-)
+st.title("📚 Agentic AI Study Planner")
 
+# ---------------- STUDY PLANNER ----------------
+st.header("1️⃣ Upload Syllabus PDF")
 
-@app.post("/upload")
-async def upload_syllabus(file: UploadFile = File(...)):
-    reader = PdfReader(file.file)
-    text = ""
+file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
+syllabus_text = ""
 
-    for page in reader.pages:
-        text += page.extract_text() or ""
+if file:
+    response = requests.post(
+        f"{BACKEND}/upload",
+        files={"file": file}
+    )
+    syllabus_text = response.json()["syllabus_text"]
+    st.success("Syllabus processed successfully")
 
-    return {
-        "syllabus_text": text.strip()
-    }
+st.header("2️⃣ Enter Timetable")
+timetable = st.text_area("Paste your weekly class & lab timetable")
 
+st.header("3️⃣ Generate Weekly Study Plan")
 
-@app.post("/generate-plan")
-async def generate_plan(payload: dict):
-    syllabus = payload.get("syllabus", "")
-    timetable = payload.get("timetable", "")
+if st.button("Generate Plan"):
+    response = requests.post(
+        f"{BACKEND}/generate-plan",
+        data={
+            "syllabus_text": syllabus_text,
+            "timetable": timetable
+        }
+    )
+    st.subheader("📅 Weekly Study Plan")
+    st.write(response.json()["plan"])
 
-    if not syllabus or not timetable:
-        return {"error": "syllabus and timetable required"}
+if st.button("Approve Plan"):
+    requests.post(f"{BACKEND}/approve")
+    st.success("Plan approved and stored in memory")
 
-    prompt = f"""
-You are an AI study planner.
+# =====================================================
+# 🔑 ONLY UI FIX: TABS
+# =====================================================
+tab1, tab2 = st.tabs(["💬 Ask Doubts", "📝 Exam Ready Notes"])
 
-SYLLABUS:
-{syllabus}
+# ---------------- CHAT TAB ----------------
+with tab1:
+    st.header("❓ Ask Doubts from Syllabus")
+    st.subheader("💬 Chat")
 
-TIMETABLE:
-{timetable}
+    conn = sqlite3.connect("memory.db")
+    cursor = conn.cursor()
 
-Create a clear weekly study plan.
-"""
+    cursor.execute(
+        "SELECT role, message FROM chat_history WHERE chat_id=? ORDER BY id",
+        (st.session_state.chat_id,)
+    )
 
-    response = llm.invoke(prompt)
+    messages = cursor.fetchall()
 
-    return {
-        "study_plan": response.content
-    }
+    for role, msg in messages:
+        with st.chat_message("user" if role == "student" else "assistant"):
+            st.markdown(msg)
 
+    question = st.chat_input("Ask your doubt...")
 
-@app.post("/ask-doubt")
-async def ask_doubt(payload: dict):
-    question = payload.get("question", "")
-    syllabus = payload.get("syllabus", "")
+    if question:
+        response = requests.post(
+            f"{BACKEND}/ask-doubt",
+            data={
+                "question": question,
+                "chat_id": st.session_state.chat_id
+            }
+        )
+        st.rerun()
 
-    if not question:
-        return {"error": "question required"}
+# ---------------- NOTES TAB ----------------
+with tab2:
+    st.header("📝 Exam Ready Notes")
 
-    prompt = f"""
-You are a helpful teacher.
+    topic = st.text_input(
+        "Enter topic name (or leave empty for syllabus-based notes)"
+    )
 
-SYLLABUS CONTEXT:
-{syllabus}
+    if st.button("Generate Notes"):
+        response = requests.post(
+            f"{BACKEND}/generate-notes",
+            data={"topic": topic}
+        )
+        st.subheader("📘 Notes")
+        st.markdown(response.json()["notes"])
 
-STUDENT QUESTION:
-{question}
+    st.subheader("📚 Saved Notes")
 
-Answer clearly and simply.
-"""
+    conn = sqlite3.connect("memory.db")
+    cursor = conn.cursor()
 
-    response = llm.invoke(prompt)
+    cursor.execute("SELECT topic, notes FROM exam_notes ORDER BY id DESC")
 
-    return {
-        "answer": response.content
-    }
+    for topic, notes in cursor.fetchall():
+        with st.expander(topic):
+            st.markdown(notes)
 
+# ---------------- SIDEBAR ----------------
+st.sidebar.markdown("### 🔥 Motivation")
 
-@app.get("/")
-def root():
-    return {"status": "Backend running"}
+if st.sidebar.button("💡 Get Motivation"):
+    response = requests.get(f"{BACKEND}/motivation")
+    st.sidebar.success(response.json()["message"])
 
+st.sidebar.markdown("### 💬 Doubt Chats")
+
+if st.sidebar.button("➕ New Chat"):
+    response = requests.get(f"{BACKEND}/new-chat")
+    st.session_state.chat_id = response.json()["chat_id"]
+    st.rerun()
