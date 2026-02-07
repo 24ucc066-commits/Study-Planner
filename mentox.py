@@ -83,6 +83,24 @@ CREATE TABLE IF NOT EXISTS exam_notes (
 """)
 conn.commit()
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    chat_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT
+               )
+""")
+conn.commit()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS chat_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id INTEGER,
+    role TEXT,
+    message TEXT
+)
+ """)
+conn.commit()
+
 
 
 llm = ChatGroq(
@@ -260,18 +278,28 @@ async def ask_doubt(
         context += f"{role}: {msg}\n"
 
     full_question = f"""
-    You are a helpful tutor.
+You are a friendly and knowledgeable tutor.
 
-    Use the following chat history only for context.
-    Do NOT repeat it in your answer.
+Answer the question in a clear, student-friendly, and slightly detailed way.
 
-    Chat history:
-    {context}
+Guidelines:
+- Explain in simple language
+- Add 1–2 extra lines of context or examples
+- Do NOT be overly brief
+- Do NOT assume prior knowledge
+- Avoid bullet points unless needed
 
-    Answer this question clearly and directly:
-    {question}
-    """
-    answer = qa_chain.run(full_question)
+Use syllabus context if available, otherwise general knowledge is allowed.
+
+Chat history (for context only):
+{context}
+
+Question:
+{question}
+"""
+
+    answer = qa_chain.invoke({"query": full_question})["result"]
+
 
     save_message(chat_id, "student", question)
     save_message(chat_id, "tutor", answer)
@@ -289,10 +317,12 @@ def get_motivation():
 
 @app.get("/new-chat")
 def new_chat():
-    cursor.execute("SELECT MAX(chat_id) FROM chat_history")
-    last_id = cursor.fetchone()[0]
-    new_id = 1 if last_id is None else last_id + 1
-    return {"chat_id": new_id}
+    cursor.execute(
+        "INSERT INTO chat_sessions (title) VALUES (?)",
+        ("New Chat",)
+    )
+    conn.commit()
+    return {"chat_id": cursor.lastrowid}
 
 
 @app.post("/generate-notes")
