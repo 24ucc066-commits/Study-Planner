@@ -11,6 +11,7 @@ faiss-cpu
 pydantic<2
 python-multipart
 pypdf
-python-dotenv
+
+
 
 
