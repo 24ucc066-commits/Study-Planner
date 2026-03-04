@@ -1,4 +1,4 @@
-```python
+
 import streamlit as st
 import sqlite3
 import random
@@ -222,4 +222,5 @@ for t, n in cursor.fetchall():
 
     with st.expander(t):
         st.markdown(n)
-```
+
+
