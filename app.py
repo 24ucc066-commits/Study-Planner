@@ -1,7 +1,6 @@
-
+```python
 import streamlit as st
 import sqlite3
-import uuid
 import random
 
 # ================= CONFIG =================
@@ -42,40 +41,39 @@ conn.commit()
 if "chat_id" not in st.session_state:
     st.session_state.chat_id = None
 
-if "stop" not in st.session_state:
-    st.session_state.stop = False
-
 if "question" not in st.session_state:
     st.session_state.question = ""
+
+# ================= MOTIVATION =================
+MOTIVATIONS = [
+    "Small steps every day lead to big success.",
+    "Consistency beats motivation.",
+    "Study now so future you can relax.",
+    "You don’t need to be perfect, just persistent.",
+    "One focused hour is better than ten distracted ones.",
+]
 
 # ================= SIDEBAR =================
 with st.sidebar:
 
     st.markdown("## 🔥 Motivation")
 
-    motivations = [
-        "Stay consistent, success will follow.",
-        "Small steps daily create big results.",
-        "Focus today, succeed tomorrow.",
-        "Your future self will thank you.",
-        "Discipline beats motivation."
-    ]
-
     if st.button("💡 Get Motivation"):
-        st.success(random.choice(motivations))
+        st.success(random.choice(MOTIVATIONS))
 
     st.divider()
 
     # NEW CHAT
     if st.button("➕ New Chat"):
+
         cursor.execute(
             "INSERT INTO chat_sessions (title) VALUES (?)",
             ("New Chat",)
         )
+
         conn.commit()
 
         st.session_state.chat_id = cursor.lastrowid
-        st.session_state.stop = False
         st.rerun()
 
     st.divider()
@@ -90,7 +88,6 @@ with st.sidebar:
         if st.button(display_title, key=f"chat_{cid}"):
 
             st.session_state.chat_id = cid
-            st.session_state.stop = False
             st.rerun()
 
 # ================= MAIN =================
@@ -103,40 +100,41 @@ if st.session_state.chat_id is None:
         "INSERT INTO chat_sessions (title) VALUES (?)",
         ("New Chat",)
     )
-    conn.commit()
 
+    conn.commit()
     st.session_state.chat_id = cursor.lastrowid
 
-# ================= 1️⃣ UPLOAD SYLLABUS =================
+# ================= SYLLABUS =================
 st.header("1️⃣ Upload Syllabus PDF")
 
 file = st.file_uploader("Upload syllabus PDF", type=["pdf"])
 
 if file:
-    st.success("Syllabus uploaded successfully (processing disabled in this version)")
+    st.success("Syllabus uploaded (analysis disabled in this simple version)")
 
-# ================= 2️⃣ TIMETABLE =================
+# ================= TIMETABLE =================
 st.header("2️⃣ Enter Timetable")
 
 timetable = st.text_area("Paste your weekly class & lab timetable")
 
-# ================= 3️⃣ WEEKLY PLAN =================
+# ================= STUDY PLAN =================
 st.header("3️⃣ Generate Weekly Study Plan")
 
 if st.button("Generate Plan"):
 
     if timetable.strip() == "":
         st.warning("Please enter timetable first")
+
     else:
 
-        plan = f"""
-Monday - Revise class topics  
-Tuesday - Practice problems  
-Wednesday - Lab preparation  
-Thursday - Concept revision  
-Friday - Mock test  
-Saturday - Weak topic revision  
-Sunday - Full syllabus review
+        plan = """
+Monday: Revise class topics  
+Tuesday: Practice problems  
+Wednesday: Lab preparation  
+Thursday: Concept revision  
+Friday: Mock test  
+Saturday: Weak topic revision  
+Sunday: Full syllabus review
 """
 
         st.subheader("📅 Weekly Study Plan")
@@ -147,7 +145,7 @@ if st.button("Approve Plan"):
 
 # ================= CHAT =================
 st.divider()
-st.header("❓ Ask Doubts from Syllabus")
+st.header("❓ Ask Doubts")
 
 cursor.execute(
     "SELECT role, message FROM chat_history WHERE chat_id=? ORDER BY id",
@@ -159,9 +157,6 @@ for role, msg in cursor.fetchall():
     with st.chat_message("user" if role == "student" else "assistant"):
         st.markdown(msg)
 
-if st.button("⏹ Stop Reply"):
-    st.session_state.stop = True
-
 st.session_state.question = st.text_input(
     "Ask your doubt",
     value=st.session_state.question
@@ -172,18 +167,16 @@ if st.button("Send"):
 
     question = st.session_state.question.strip()
 
-    if question and not st.session_state.stop:
+    if question:
 
         chat_id = int(st.session_state.chat_id)
 
-        # Save student question
         cursor.execute(
             "INSERT INTO chat_history (chat_id, role, message) VALUES (?, ?, ?)",
             (chat_id, "student", question)
         )
 
-        # Dummy AI response
-        answer = "This is a placeholder answer. Connect an AI model later."
+        answer = "This is a placeholder answer. You can connect AI later."
 
         cursor.execute(
             "INSERT INTO chat_history (chat_id, role, message) VALUES (?, ?, ?)",
@@ -199,23 +192,24 @@ if st.button("Send"):
 st.divider()
 st.header("📝 Exam Ready Notes")
 
-topic = st.text_input("Enter topic (leave empty for full syllabus)")
+topic = st.text_input("Enter topic")
 
 if st.button("Generate Notes"):
 
     notes = f"""
-### Notes for: {topic if topic else "Full Syllabus"}
+### Notes for {topic}
 
-• Revise key concepts  
-• Practice previous year questions  
-• Make short summary notes  
-• Focus on weak areas
+• Definition  
+• Important concepts  
+• Key formulas  
+• Previous year questions focus  
 """
 
     cursor.execute(
-        "INSERT INTO exam_notes (topic, notes) VALUES (?, ?)",
-        (topic if topic else "General", notes)
+        "INSERT INTO exam_notes (topic, notes) VALUES (?,?)",
+        (topic, notes)
     )
+
     conn.commit()
 
     st.markdown(notes)
@@ -228,5 +222,4 @@ for t, n in cursor.fetchall():
 
     with st.expander(t):
         st.markdown(n)
-
-
+```
