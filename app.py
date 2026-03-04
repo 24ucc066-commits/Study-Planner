@@ -1,7 +1,7 @@
 import streamlit as st
 import sqlite3
 
-from backend_logic import (
+from mentox import (
     new_chat,
     get_motivation,
     extract_pdf_text,
@@ -160,3 +160,4 @@ cursor.execute("SELECT topic, notes FROM exam_notes ORDER BY id DESC")
 for t, n in cursor.fetchall():
     with st.expander(t):
         st.markdown(n)
+
