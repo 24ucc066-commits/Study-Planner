@@ -186,4 +186,5 @@ st.subheader("📚 Saved Notes")
 cursor.execute("SELECT topic, notes FROM exam_notes ORDER BY id DESC")
 for t, n in cursor.fetchall():
     with st.expander(t):
-        st.markdown(n) change and send
+        st.markdown(n) 
+
