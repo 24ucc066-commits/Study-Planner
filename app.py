@@ -80,7 +80,7 @@ if st.session_state.chat_id is None:
      return {"messages": []}
 
 r = new_chat()
-    st.session_state.chat_id = r.json()["chat_id"]
+st.session_state.chat_id = r.json()["chat_id"]
 
 # ================= 1️⃣ UPLOAD SYLLABUS =================
 st.header("1️⃣ Upload Syllabus PDF")
@@ -190,6 +190,7 @@ cursor.execute("SELECT topic, notes FROM exam_notes ORDER BY id DESC")
 for t, n in cursor.fetchall():
     with st.expander(t):
         st.markdown(n) 
+
 
 
 
