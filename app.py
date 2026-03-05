@@ -3,9 +3,9 @@ import requests
 
 BACKEND = "https://study-planner-kvev.onrender.com"  # CHANGE if needed
 
-st.set_page_config(page_title="AI Study Planner", layout="centered")
+st.set_page_config(page_title="MentorMind", layout="centered")
 
-st.title("📘 AI Study Planner")
+st.title("📘 MentorMind")
 
 # -------------------- STEP 1 --------------------
 st.header("1️⃣ Upload Syllabus PDF")
@@ -78,3 +78,4 @@ if st.button("Ask Doubt"):
             st.write(res["answer"])
         else:
             st.error("Doubt solver failed")
+
