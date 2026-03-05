@@ -79,3 +79,4 @@ if st.button("Ask Doubt"):
         else:
             st.error("Doubt solver failed")
 
+
